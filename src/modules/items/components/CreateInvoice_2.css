@@ -1,0 +1,79 @@
+        .excel-like-table-2 td {
+            padding: 0;
+            vertical-align: middle;
+        }
+
+        .excel-like-table-2 input,
+        .excel-like-table-2 select {
+            border: none;
+            border-right: 1px solid #dee2e6;
+            border-bottom: 1px solid #dee2e6;
+            width: 100%;
+            height: 100%;
+            padding: 8px;
+            background-color: transparent;
+        }
+
+        .excel-like-table-2 input:focus,
+        .excel-like-table-2 select:focus {
+            outline: none;
+            background-color: #f8f9fa;
+        }
+
+        .excel-like-table-2 thead th {
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .excel-like-table-2 tbody tr:last-child td input,
+        .excel-like-table-2 tbody tr:last-child td select {
+            border-bottom: none;
+        }
+
+        .excel-like-table-2 td:last-child input,
+        .excel-like-table-2 td:last-child select {
+            border-right: none;
+        }
+
+        .excel-like-table-2 tbody tr:nth-child(odd) td {
+            background-color: white;
+        }
+
+        .excel-like-table-2 tbody tr:nth-child(even) td {
+            background-color: #96daaa;
+        }
+
+        .row-index {
+            text-align: center;
+            padding: 8px !important;
+            border-right: 1px solid #dee2e6;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .action-cell {
+            padding: 8px !important;
+            border-left: 1px solid #dee2e6;
+            border-bottom: 1px solid #dee2e6;
+            text-align: center;
+        }
+
+        .excel-like-table-2 tbody tr:last-child .row-index,
+        .excel-like-table-2 tbody tr:last-child .action-cell {
+            border-bottom: none;
+        }
+
+        .table-dark-mode {
+            --bs-border-color: #444c56;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+        }
+
+        .table-dark-mode input,
+        .table-dark-mode select {
+            background-color: transparent;
+            color: #000000;
+        }
+
+        .table-dark-mode input:focus,
+        .table-dark-mode select:focus {
+            background-color: rgba(255, 255, 120, 0.15);
+        }

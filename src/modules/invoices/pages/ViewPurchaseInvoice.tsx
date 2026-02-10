@@ -1,0 +1,346 @@
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { invoicesService } from '../services/invoices.service'
+import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../../core/hooks/useTheme'
+import { formatDate } from '../../../core/utils/formatDate'
+import Swal from 'sweetalert2'
+import * as XLSX from 'xlsx';
+import '../components/CreateInvoice.css'
+
+interface InvoiceItem {
+    id: number
+    item: { name: string }
+    unit: { name: string }
+    inventory: { name: string }
+    quantity: string
+    unit_price: string
+    total_price: string
+    expiration_date: string | null
+    unit_currency: { symbol: string }
+}
+
+interface InvoiceData {
+    id: number
+    invoice_no: number
+    invoice_date: string
+    supplier: { name: string }
+    inventory: { name: string }
+    currency: { symbol: string; name: string; exchange_rate: number }
+    pay_method: string
+    invoice_description: string | null
+    total_price: string
+    discount: string
+    created_at: string
+    invoice_details: InvoiceItem[]
+}
+
+const ViewPurchaseInvoice = () => {
+    const { id } = useParams<{ id: string }>()
+    const navigate = useNavigate()
+    const { t } = useTranslation()
+    const { mode } = useTheme()
+    const [invoice, setInvoice] = useState<InvoiceData | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const fetchInvoice = async () => {
+            if (!id) return
+            try {
+                const res = await invoicesService.getById(Number(id))
+                setInvoice(res.data.data)
+            } catch (err: any) {
+                Swal.fire(t('error'), err.response?.data?.message || t('failed_to_load_invoice'), 'error')
+                navigate(-1)
+            } finally {
+                setLoading(false)
+            }
+        }
+        fetchInvoice()
+    }, [id, navigate, t])
+
+    const formatLargeNumber = (value: string | number, decimals: number = 2): string => {
+        const num = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(num)) return '0.00';
+
+        return num.toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+    };
+
+    const exportToExcel = () => {
+        if (!invoice) return;
+
+        const worksheetData: (string | number)[][] = [
+            [t('invoice_no'), invoice.invoice_no],
+            [t('invoice_date'), formatDate(invoice.invoice_date)],
+            [t('supplier'), invoice.supplier.name],
+            [t('inventory'), invoice.inventory.name],
+            [t('currency'), `${invoice.currency.name} (${invoice.currency.symbol})`],
+            [t('payment_method'), t(invoice.pay_method.toLowerCase()) || invoice.pay_method],
+            [t('description'), invoice.invoice_description || ''],
+            [], // empty row
+            ['', t('item'), t('unit'), t('quantity'), t('unit_price'), t('total'), t('expiry_date')]
+        ];
+
+        invoice.invoice_details.forEach((item, index) => {
+            worksheetData.push([
+                index + 1,
+                item.item.name,
+                item.unit.name,
+                parseFloat(item.quantity).toFixed(3),
+                `${item.unit_currency.symbol}${parseFloat(item.unit_price).toFixed(2)}`,
+                `${item.unit_currency.symbol}${parseFloat(item.total_price).toFixed(2)}`,
+                item.expiration_date ? formatDate(item.expiration_date) : '—'
+            ]);
+        });
+
+        const subtotal = invoice.invoice_details.reduce((sum, item) => sum + parseFloat(item.total_price || '0'), 0);
+        const discountAmount = parseFloat(invoice.discount || '0');
+        const finalTotal = subtotal - discountAmount;
+
+        worksheetData.push([], [t('subtotal'), '', '', '', '', `${invoice.currency.symbol}${subtotal.toFixed(2)}`, '']);
+        if (discountAmount > 0) {
+            worksheetData.push([t('discount'), '', '', '', '', `-${invoice.currency.symbol}${discountAmount.toFixed(2)}`, '']);
+        }
+        worksheetData.push([t('grand_total'), '', '', '', '', `${invoice.currency.symbol}${finalTotal.toFixed(2)}`, '']);
+
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, t('purchase_invoice'));
+        XLSX.writeFile(workbook, `Purchase_Invoice_${invoice.invoice_no}.xlsx`);
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    if (loading) {
+        return (
+            <div className="d-flex justify-content-center align-items-center min-h-500px">
+                <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">{t('loading')}</span>
+                </div>
+            </div>
+        )
+    }
+
+    if (!invoice) {
+        return (
+            <div className="text-center py-20">
+                <h3>{t('invoice_not_found')}</h3>
+                <button className="btn btn-primary mt-4" onClick={() => navigate(-1)}>
+                    {t('back')}
+                </button>
+            </div>
+        )
+    }
+
+    const subtotal = invoice.invoice_details.reduce((sum, item) => sum + parseFloat(item.total_price || '0'), 0)
+    const discountAmount = parseFloat(invoice.discount || '0')
+    const finalTotal = subtotal - discountAmount
+
+    return (
+        <div className="card">
+            {/* Header */}
+            <div className="card-header border-0 pt-8 pb-6">
+                <div className="card-title">
+                    <h2 className="fw-bolder">
+                        {t('purchase_invoice')} #{invoice.invoice_no}
+                    </h2>
+                </div>
+                <div className="card-toolbar">
+                    <div className="btn-group me-3">
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-bg-light dropdown-toggle"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+                            <i className="ki-solid ki-file-right fs-2"></i>
+                        </button>
+                        <ul className="dropdown-menu">
+                            <li>
+                                <button className="dropdown-item" onClick={exportToExcel}>
+                                    {t('export_to_excel')}
+                                </button>
+                            </li>
+                            <li>
+                                <button className="dropdown-item" onClick={handlePrint}>
+                                    {t('print')}
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <button className="btn btn-sm btn-light" onClick={() => navigate(-1)}>
+                        <i className="ki-outline ki-arrow-left fs-2" style={{ paddingLeft: '0px' }}></i>
+                    </button>
+                </div>
+            </div>
+
+            <div className="card-body p-10">
+                {/* Financial Summary */}
+                <div className="row g-8 mb-10">
+                    <div className="col-lg-8">
+                        <div className="bg-light rounded-3 p-6">
+                            <h4 className="fw-bold text-primary mb-6">{t('invoice_info')}</h4>
+
+                            <div className="row g-5 fs-5">
+                                {/* Left Column */}
+                                <div className="col-md-6">
+                                    <div className="d-flex flex-column gap-4">
+                                        <div>
+                                            <span className="text-gray-600 me-2">{t('invoice_date')}:</span>
+                                            <strong>{formatDate(invoice.invoice_date)}</strong>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600 me-2">{t('supplier')}:</span>
+                                            <strong>{invoice.supplier.name}</strong>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600 me-2">{t('inventory')}:</span>
+                                            <strong>{invoice.inventory.name}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column */}
+                                <div className="col-md-6">
+                                    <div className="d-flex flex-column gap-4">
+                                        <div>
+                                            <span className="text-gray-600 me-2">{t('payment_method')}:</span>
+                                            <strong>{t(invoice.pay_method.toLowerCase()) || invoice.pay_method}</strong>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600 me-2">{t('currency')}:</span>
+                                            <strong>
+                                                {invoice.currency.symbol} {invoice.currency.name}
+                                                {invoice.currency.exchange_rate !== 1 && (
+                                                    <span className="text-gray-600 fs-7 m-2">
+                                                        (1 = {invoice.currency.exchange_rate})
+                                                    </span>
+                                                )}
+                                            </strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* description */}
+                            {invoice.invoice_description && (
+                                <div className="mt-6 pt-5 border-top border-gray-300">
+                                    <span className="text-gray-600 me-2">{t('description')}:</span>
+                                    <span className="fw-bold">{invoice.invoice_description}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Grand Total Card */}
+                    <div className="col-lg-4">
+                        <div className="bg-light-primary rounded-3 p-6 text-white h-100 d-flex flex-column justify-content-center">
+                            <h4 className="fw-bold mb-4">{t('grand_total')}</h4>
+                            <div className="fs-2x fw-bolder text-primary mb-2">
+                                {invoice.currency.symbol}{formatLargeNumber(finalTotal)}
+                            </div>
+                            {discountAmount > 0 && (
+                                <div className="fs-6 fw-bolder text-danger mt-2">
+                                    {t('after_discount')} {invoice.currency.symbol}{formatLargeNumber(discountAmount)}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="separator separator-dashed my-10"></div>
+
+                {/* Excel-Style Items Table */}
+                <h3 className="mb-7 fw-bold text-gray-800">{t('purchased_items')}</h3>
+
+                <div className="table-responsive">
+                    <table className={`table table-bordered excel-like-table align-middle ${mode === 'dark' ? 'table-dark-mode' : ''}`}>
+                        <thead>
+                            <tr className="bg-light text-center text-gray-700 fw-bold fs-6">
+                                <th style={{ width: '5%' }}></th>
+                                <th style={{ width: '28%' }}>{t('item')}</th>
+                                <th style={{ width: '12%' }}>{t('unit')}</th>
+                                <th style={{ width: '12%' }}>{t('quantity')}</th>
+                                <th style={{ width: '14%' }}>{t('unit_price')}</th>
+                                <th style={{ width: '14%' }}>{t('total')}</th>
+                                <th style={{ width: '15%' }}>{t('expiry_date')}</th>
+                            </tr>
+                        </thead>
+                        <tbody className="fs-6">
+                            {invoice.invoice_details.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-10 text-gray-500">
+                                        {t('no_items_found')}
+                                    </td>
+                                </tr>
+                            ) : (
+                                invoice.invoice_details.map((item, index) => (
+                                    <tr key={item.id} className="hover-highlight">
+                                        <td className="row-index" style={{ color: '#000000' }}>{index + 1}</td>
+
+                                        <td className="ps-4" style={{ color: '#000000' }}>{item.item.name}</td>
+
+                                        <td className="text-center" style={{ color: '#000000' }}>
+                                            {item.unit.name}
+                                        </td>
+
+                                        <td className="text-center fw-bold" style={{ color: '#000000' }}>
+                                            {parseFloat(item.quantity).toFixed(1)}
+                                        </td>
+
+                                        <td className="text-center fw-bold" style={{ color: '#000000' }}>
+                                            {item.unit_currency.symbol}{formatLargeNumber((item.unit_price))}
+                                        </td>
+
+                                        <td className="text-center fw-bold" style={{ color: '#000000' }}>
+                                            {item.unit_currency.symbol}{formatLargeNumber((item.total_price))}
+                                        </td>
+
+                                        <td className="text-center" style={{ color: '#000000' }}>
+                                            {item.expiration_date ? formatDate(item.expiration_date) : '—'}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                        {invoice.invoice_details.length > 0 && (
+                            <tfoot>
+                                {/* <tr className="bg-light fw-bold fs-6">
+                                    <td colSpan={5} className="text-end pe-6">{t('subtotal')}</td>
+                                    <td className="text-center text-dark p-3">
+                                        {invoice.currency.symbol}{subtotal.toFixed(2)}
+                                    </td>
+                                    <td></td>
+                                </tr> */}
+                                {discountAmount > 0 && (
+                                    <tr className="bg-light-warning fw-bolder fs-5">
+                                        <td colSpan={5} className="text-end pe-6 text-danger">{t('discount')}</td>
+                                        <td className="text-center text-danger p-3">
+                                            -{invoice.currency.symbol}{formatLargeNumber(discountAmount)}
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                )}
+                                <tr className="bg-light text-white fw-bolder fs-5">
+                                    <td colSpan={5} className="text-end pe-6">{t('grand_total')}</td>
+                                    <td className="text-center text-success p-3">
+                                        {invoice.currency.symbol}{formatLargeNumber(finalTotal)}
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default ViewPurchaseInvoice

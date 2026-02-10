@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RMS Panel</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Arabic Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;700&family=Tajawal:wght@400;500;700&display=swap"
+    rel="stylesheet" />
+
+  <!-- Metronic CSS (base) -->
+  <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+  <!-- RTL will be injected dynamically -->
+  <link id="metronic-style" href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+
+  <!-- Icons -->
+  <link href="/assets/fonts/keenicons-duotone/style.css" rel="stylesheet" type="text/css" />
+  <link href="/assets/fonts/keenicons-outline/style.css" rel="stylesheet" type="text/css" />
+  <link href="/assets/fonts/keenicons-solid/style.css" rel="stylesheet" type="text/css" />
+
+  <!-- Add to public/index.html inside <head> -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+
+  <!-- Favicon -->
+  <link rel="icon" href="/assets/media/features-logos/typescript.png" />
+</head>
+
+<body id="kt_body" data-kt-theme-mode="light"
+  class="header-fixed header-tablet-and-mobile-fixed toolbar-enabled toolbar-fixed toolbar-tablet-and-mobile-fixed aside-enabled aside-fixed"
+  style="--kt-toolbar-height:55px;--kt-toolbar-height-tablet-and-mobile:55px">
+  <div id="root"></div>
+
+  <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true">
+    <i class="ki-outline ki-arrow-up"></i>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="/assets/plugins/global/plugins.bundle.js"></script>
+  <script src="/assets/js/scripts.bundle.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" src="/src/main.tsx"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.15/themes/default/style.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.15/jstree.min.js"></script>
+
+  <!-- Dynamic RTL Switcher -->
+  <script>
+    const switchRtl = (isRtl) => {
+      const link = document.getElementById('metronic-style');
+      const base = '/assets/css/style.bundle';
+      link.href = isRtl ? `${base}.rtl.css` : `${base}.css`;
+    };
+    window.switchRtl = switchRtl;
+  </script>
+</body>
+
+</html>
