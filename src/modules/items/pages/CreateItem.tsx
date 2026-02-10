@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useFormik, FormikProvider } from 'formik';
 import * as Yup from 'yup';
@@ -51,37 +51,44 @@ interface FormValues {
     sell_price?: number;
 }
 
-type FocusTarget = { row: number; field: number } | null;
-
-const ITEM_TYPE_MAP: Record<string, number> = {
-    raw: 0,
-    'half-produced': 1,
-    'full-produced': 2,
-    serviceable: 3,
-    'reverse-produced': 4,
-};
-
-const ROW_NAVIGATION_KEYS = ['Enter', 'Tab', 'ArrowRight', 'ArrowLeft', 'Delete'];
-
-const createInitialValues = (isProduced: boolean): FormValues => ({
-    name: '',
-    description: '',
-    category_id: '',
-    item_group_id: '',
-    recipe_unit_id: '',
-    recipe_quantity: 0,
-    item_code: '',
-    limit: 0,
-    limit_unit_id: '',
-    inventory_id: '',
-    units: [{ unit_id: '', fold: 0, is_primary: false, is_default: false }],
-    ingredients: isProduced ? [{ ingredient_id: '', unit_id: '', quantity: 0, default_inventory_id: '' }] : [],
-    hasSellPrice: false,
-    sell_price: undefined,
-});
-
-const buildValidationSchema = (t: (key: string) => string, isProduced: boolean) => {
-    const baseSchema: Record<string, any> = {
+const CreateItem: React.FC = () => {
+    const { id, type } = useParams<{ id?: string; type: string }>();
+    const isEdit = !!id;
+    const formattedType = type ? type.split('-').map(word => word.charAt(0).toLowerCase() + word.slice(1)).join('_') : '';
+    const isProduced = type === 'half-produced' || type === 'full-produced' || type === 'reverse-produced';
+    const typeMap: { [key: string]: number } = {
+        'raw': 0,
+        'half-produced': 1,
+        'full-produced': 2,
+        'serviceable': 3,
+        'reverse-produced': 4,
+    };
+    const itemType = typeMap[type || 'raw'];
+    const unitsRowRefs = useRef<(HTMLInputElement | HTMLSelectElement | null)[][]>([]);
+    const ingredientsRowRefs = useRef<(HTMLInputElement | HTMLSelectElement | null)[][]>([]);
+    const [focusAfterDeleteUnits, setFocusAfterDeleteUnits] = useState<{ row: number; field: number } | null>(null);
+    const [focusAfterDeleteIngredients, setFocusAfterDeleteIngredients] = useState<{ row: number; field: number } | null>(null);
+    const [priceType, setPriceType] = useState<'average' | 'last'>('average');
+    const [modalShow, setModalShow] = useState(false);
+    const [pricingData, setPricingData] = useState<any>(null);
+    const navigate = useNavigate();
+    const { mode } = useTheme();
+    const { t } = useTranslation();
+    const {
+        categories,
+        unitsList,
+        itemsList,
+        unitsMap,
+        inventories,
+        itemGroups,
+        fetchUnits,
+        calculatePricing,
+        refreshUnitsList,
+        loading,
+        itemData
+    } = useItemData(isEdit ? id : undefined);
+    const queryClient = useQueryClient();
+    const baseSchema = {
         name: Yup.string().required(t('name_is_required')),
         description: Yup.string().optional(),
         category_id: Yup.string().required(t('category_is_required')),
@@ -109,12 +116,11 @@ const buildValidationSchema = (t: (key: string) => string, isProduced: boolean) 
                 return units?.filter(u => u.is_default).length === 1;
             }),
     };
-
     if (isProduced) {
-        baseSchema.recipe_unit_id = Yup.string().required(t('recipe_unit_is_required'));
-        baseSchema.recipe_quantity = Yup.number().positive(t('quantity_must_be_positive')).required(t('required'));
-        baseSchema.inventory_id = Yup.string().required(t('inventory_is_required'));
-        baseSchema.ingredients = Yup.array().of(
+        (baseSchema as any).recipe_unit_id = Yup.string().required(t('recipe_unit_is_required'));
+        (baseSchema as any).recipe_quantity = Yup.number().positive(t('quantity_must_be_positive')).required(t('required'));
+        (baseSchema as any).inventory_id = Yup.string().required(t('inventory_is_required'));
+        (baseSchema as any).ingredients = Yup.array().of(
             Yup.object().shape({
                 ingredient_id: Yup.string().required(t('required')),
                 unit_id: Yup.string().required(t('required')),
@@ -123,50 +129,25 @@ const buildValidationSchema = (t: (key: string) => string, isProduced: boolean) 
             })
         ).min(1, t('at_least_one_ingredient_required'));
     }
-
-    return Yup.object().shape(baseSchema);
-};
-
-const CreateItem: React.FC = () => {
-    const { id, type } = useParams<{ id?: string; type: string }>();
-    const isEdit = !!id;
-    const formattedType = useMemo(
-        () => (type ? type.split('-').map(word => word.charAt(0).toLowerCase() + word.slice(1)).join('_') : ''),
-        [type]
-    );
-    const isProduced = type === 'half-produced' || type === 'full-produced' || type === 'reverse-produced';
-    const itemType = ITEM_TYPE_MAP[type || 'raw'];
-    const unitsRowRefs = useRef<(HTMLInputElement | HTMLSelectElement | null)[][]>([]);
-    const ingredientsRowRefs = useRef<(HTMLInputElement | HTMLSelectElement | null)[][]>([]);
-    const [focusAfterDeleteUnits, setFocusAfterDeleteUnits] = useState<FocusTarget>(null);
-    const [focusAfterDeleteIngredients, setFocusAfterDeleteIngredients] = useState<FocusTarget>(null);
-    const [priceType, setPriceType] = useState<'average' | 'last'>('average');
-    const [modalShow, setModalShow] = useState(false);
-    const [pricingData, setPricingData] = useState<any>(null);
-    const navigate = useNavigate();
-    const { mode } = useTheme();
-    const { t } = useTranslation();
-    const {
-        categories,
-        unitsList,
-        itemsList,
-        unitsMap,
-        inventories,
-        itemGroups,
-        fetchUnits,
-        calculatePricing,
-        refreshUnitsList,
-        loading,
-        itemData
-    } = useItemData(isEdit ? id : undefined);
-    const queryClient = useQueryClient();
-    const validationSchema = useMemo(() => buildValidationSchema(t, isProduced), [t, isProduced]);
-
-    const initialValues = useMemo(() => createInitialValues(isProduced), [isProduced]);
-
+    const validationSchema = Yup.object().shape(baseSchema);
     const formik = useFormik<FormValues>({
-        initialValues,
-        validationSchema,
+        initialValues: {
+            name: '',
+            description: '',
+            category_id: '',
+            item_group_id: '',
+            recipe_unit_id: '',
+            recipe_quantity: 0,
+            item_code: '',
+            limit: 0,
+            limit_unit_id: '',
+            inventory_id: '',
+            units: [{ unit_id: '', fold: 0, is_primary: false, is_default: false }],
+            ingredients: isProduced ? [{ ingredient_id: '', unit_id: '', quantity: 0, default_inventory_id: '' }] : [],
+            hasSellPrice: false,
+            sell_price: undefined,
+        },
+        validationSchema: validationSchema,
         onSubmit: async (values) => {
             const payload: any = {
                 id: isEdit ? Number(id) : undefined,
@@ -255,12 +236,12 @@ const CreateItem: React.FC = () => {
         },
     })
 
-    const fetchPriceForRow = useCallback(async (index: number, ingredient: IngredientItem) => {
+    const fetchPriceForRow = async (index: number) => {
+        const ingredient = formik.values.ingredients[index];
         if (!ingredient.ingredient_id || !ingredient.unit_id) {
             formik.setFieldValue(`ingredients.${index}.unit_price`, 0);
             return;
         }
-
         try {
             const price = await getUnitPrice(priceType, ingredient.ingredient_id, ingredient.unit_id);
             formik.setFieldValue(`ingredients.${index}.unit_price`, price ?? 0);
@@ -268,20 +249,12 @@ const CreateItem: React.FC = () => {
             console.error('Failed to fetch price:', err);
             formik.setFieldValue(`ingredients.${index}.unit_price`, 0);
         }
-    }, [formik, priceType]);
-
-    const ingredientPriceSignature = useMemo(
-        () => formik.values.ingredients.map((it) => `${it.ingredient_id}-${it.unit_id}`).join('|'),
-        [formik.values.ingredients]
-    );
-
+    };
     useEffect(() => {
-        if (!isProduced) return;
-
-        formik.values.ingredients.forEach((ingredient, index) => {
-            fetchPriceForRow(index, ingredient);
+        formik.values.ingredients.forEach((_: any, index: number) => {
+            fetchPriceForRow(index);
         });
-    }, [fetchPriceForRow, ingredientPriceSignature, isProduced]);
+    }, [priceType, formik.values.ingredients.length]);
     useEffect(() => {
         if (isProduced && formik.values.ingredients.length > 0) {
             calculatePricing(formik.values.ingredients).then(setPricingData);
@@ -374,7 +347,7 @@ const CreateItem: React.FC = () => {
         fieldIndex: number,
         arrayHelpers: { push: (obj: UnitItem) => void; remove: (index: number) => void }
     ) => {
-        if (ROW_NAVIGATION_KEYS.includes(e.key)) {
+        if (['Enter', 'Tab', 'ArrowRight', 'ArrowLeft', 'Delete'].includes(e.key)) {
             e.preventDefault();
         }
         const currentRowRefs = unitsRowRefs.current[rowIndex];
@@ -412,7 +385,7 @@ const CreateItem: React.FC = () => {
         fieldIndex: number,
         arrayHelpers: { push: (obj: IngredientItem) => void; remove: (index: number) => void }
     ) => {
-        if (ROW_NAVIGATION_KEYS.includes(e.key)) {
+        if (['Enter', 'Tab', 'ArrowRight', 'ArrowLeft', 'Delete'].includes(e.key)) {
             e.preventDefault();
         }
         const currentRowRefs = ingredientsRowRefs.current[rowIndex];
@@ -464,10 +437,10 @@ const CreateItem: React.FC = () => {
         }
         formik.setFieldValue(`units.${index}.is_default`, checked);
     };
-    const handleUnitChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
+    const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
         formik.handleChange(e);
-        fetchPriceForRow(index, formik.values.ingredients[index]);
-    }, [fetchPriceForRow, formik]);
+        fetchPriceForRow(index);
+    };
     const fields = [
         { name: 'name', type: 'text', label: 'name' },
         { name: 'description', type: 'textarea', label: 'description' },
@@ -478,7 +451,7 @@ const CreateItem: React.FC = () => {
         description: Yup.string().nullable(),
         is_active: Yup.boolean(),
     });
-    const handleUnitSubmit = useCallback(async (values: any) => {
+    const handleUnitSubmit = async (values: any) => {
         const backendData = {
             name: values.name.trim(),
             description: values.description?.trim() || null,
@@ -496,16 +469,16 @@ const CreateItem: React.FC = () => {
                 text: err.response?.data?.message || t('failed_to_create_unit'),
             });
         }
-    }, [refreshUnitsList, t]);
+    };
     const initialUnitValues = {
         name: '',
         description: '',
         is_active: true,
     };
-    const getItemName = useCallback((id: number) => {
+    const getItemName = (id: number) => {
         const item = itemsList.find((it: any) => it.id === id);
         return item ? item.name : id;
-    }, [itemsList]);
+    };
     if (loading) {
         return (
             <div className="d-flex justify-content-center align-items-center min-h-300px">

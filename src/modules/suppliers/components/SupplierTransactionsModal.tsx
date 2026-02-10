@@ -89,7 +89,7 @@ const SupplierTransactionsModal = ({ show, onHide, supplier }: { show: boolean; 
         {
             key: 'transaction_type_name',
             header: 'transaction_type',
-            render: (tx: any) => t(tx.invoice_type_name || 'unknown'),
+            render: (tx: any) => t(tx.transaction_type_name || 'unknown'),
         },
         {
             key: 'quantity',

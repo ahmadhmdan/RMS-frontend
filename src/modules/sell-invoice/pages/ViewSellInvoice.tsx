@@ -147,7 +147,7 @@ const ViewPurchaseInvoice = () => {
             <div className="card-header border-0 pt-8 pb-6">
                 <div className="card-title">
                     <h2 className="fw-bolder">
-                        {t('purchase_invoice')} #{invoice.invoice_no}
+                        {t('sell_invoice')} #{invoice.invoice_no}
                     </h2>
                 </div>
                 <div className="card-toolbar">
