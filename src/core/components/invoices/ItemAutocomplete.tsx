@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next';
 
 interface ItemAutocompleteProps {
     value: string;
-    onChange: (id: string) => void;
+    onChange: (id: string, item?: any) => void;
     itemsList: any[];
     onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => void;
     inputRef: React.Ref<HTMLInputElement>;
     placeholder?: string;
+    hasError?: boolean;
 }
 
 export const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
@@ -16,7 +17,8 @@ export const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
     itemsList,
     onKeyDown,
     inputRef,
-    placeholder
+    placeholder,
+    hasError
 }) => {
     const { t } = useTranslation();
     const [searchTerm, setSearchTerm] = useState('');
@@ -33,15 +35,15 @@ export const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
         it.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleSelect = (id: string, name: string) => {
-        onChange(id);
+    const handleSelect = (id: string, name: string, selectedItem?: any) => {
+        onChange(id, selectedItem);
         setSearchTerm(name);
         setIsOpen(false);
         setHighlightedIndex(-1);
     };
 
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Delete') {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Delete' || e.key === 'Tab') {
             setIsOpen(false);
             onKeyDown(e);
             return;
@@ -72,17 +74,14 @@ export const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
                 e.preventDefault();
                 if (highlightedIndex >= 0 && highlightedIndex < filteredItems.length) {
                     const item = filteredItems[highlightedIndex];
-                    handleSelect(item.id, item.name);
+                    handleSelect(item.id, item.name, item);
                 } else {
                     setIsOpen(false);
                 }
+                onKeyDown(e);
                 break;
             case 'Escape':
                 e.preventDefault();
-                setIsOpen(false);
-                setHighlightedIndex(-1);
-                break;
-            case 'Tab':
                 setIsOpen(false);
                 setHighlightedIndex(-1);
                 break;
@@ -113,7 +112,7 @@ export const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
         <div className="position-relative" ref={dropdownRef}>
             <input
                 type="text"
-                className="form-control"
+                className={`form-control ${hasError ? 'is-invalid' : ''}`}
                 value={searchTerm}
                 onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -134,7 +133,7 @@ export const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
                         <li
                             key={it.id}
                             className={`list-group-item ${idx === highlightedIndex ? 'active' : ''}`}
-                            onClick={() => handleSelect(it.id, it.name)}
+                            onClick={() => handleSelect(it.id, it.name, it)}
                             onMouseEnter={() => setHighlightedIndex(idx)}
                         >
                             {it.name}
